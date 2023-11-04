@@ -1,0 +1,6 @@
+2 Nov 2023
+
+- Will test implemented value networks on random input tensors and on Gym environment;
+- The networks take as input random tensors with shape=(BATCH_SIZE, 4, 84, 84). Noticed that CNN input tensor shape is expected to be different in PyTorch and Tensorflow. Keep this in mind for the future;
+- Tested Actor network for all 3 different alpha values
+- Before testing model on gym environment observations, I have to preprocess these first.
