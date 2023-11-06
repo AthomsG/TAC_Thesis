@@ -22,18 +22,11 @@ class Replay_Buffer(object):
         '''
         return len(self.mem)
 
-    def append(self, transition):
+    def store(self, transition):
         '''
-        Append a transition to the Replay Buffer.
+        Store a transition in the Replay Buffer
         '''
         self.mem.append(transition)
-
-    def extend(self, transitions):
-        '''
-        Extend the Replay Buffer with a list of transitions.
-        '''
-        for t in transitions:
-            self.append(t)
 
     def sample(self, batch_size):
         '''

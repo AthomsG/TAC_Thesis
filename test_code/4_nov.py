@@ -10,7 +10,7 @@ np.random.seed(0)
 torch.manual_seed(0) 
 
 BATCH_SIZE = 2
-RAC_agent = RAC(n_actions=4)
+RAC_agent = RAC(log_path='', n_actions=4)
 
 # choose random observation
 obs = torch.rand(2, 4, 84, 84)
@@ -34,7 +34,7 @@ path_to_weights = 'test_RAC_save_and_load/original_RAC'
 
 RAC_agent.save(path=path_to_weights)
 
-new_RAC_agent = RAC(n_actions=4)
+new_RAC_agent = RAC(log_path='', n_actions=4)
 new_RAC_agent.load(path_to_weights)
 
 # replicate experiment to check if model was properly loaded:

@@ -4,3 +4,39 @@
 - The networks take as input random tensors with shape=(BATCH_SIZE, 4, 84, 84). Noticed that CNN input tensor shape is expected to be different in PyTorch and Tensorflow. Keep this in mind for the future;
 - Tested Actor network for all 3 different alpha values
 - Before testing model on gym environment observations, I have to preprocess these first.
+
+4 Nov 2023
+
+- Used Xiang Li's implementation of atari_env to process (wrap) the models environments. Uses OpenAI Gym's library;
+- Tested Actor & Critic networks on environments output states;
+- Started implementing RAC agent class. It is the class where the regularized actor critic algorithm for the discrete scenario is implemented. (get action, save and load models weights methods. All have been tested and work)
+
+5 Nov 2023
+
+- Continuing to implementation of the RAC class.
+- Implemented a proto gradient_step method. Had to troubleshoot a computational graph issue with solution [here](https://discuss.pytorch.org/t/multiple-loss-functions-in-a-model/111464/14).
+
+- PROBLEM SOURCE:
+
+'''
+self.critic1_opt.zero_grad()
+v_loss.backward()
+self.critic1_opt.step()
+
+self.actor_opt.zero_grad()
+p_loss.backward()
+self.actor_opt.step()
+'''
+
+- PROBLEM SOLUTION: (It had to do with the fact that I'm sharing tensors in the different losses)
+
+'''
+self.critic1_opt.zero_grad()
+self.actor_opt.zero_grad()
+
+v_loss.backward(retain_graph=True)
+p_loss.backward()
+
+self.critic1_opt.step()
+self.actor_opt.step()
+'''
