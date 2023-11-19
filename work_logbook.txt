@@ -40,3 +40,20 @@ p_loss.backward()
 self.critic1_opt.step()
 self.actor_opt.step()
 '''
+
+6 Nov 2023
+
+- Changed VisualizeEnv class to output states with the buffer size included in the first index (avoid having to reshape frequently);
+- Organised code by separating Actor and Critic classes into separate .py file;
+- Implemented a version of the full model. Used same hyperparameters as Xiang Li but model didn't takeoff (on Breakout!). I believe this has to do with the fact I'm not running through the whole dataset, only one batch. 
+- Apparently this is not really an issue. We're not supposed to perform the gradient step on the whole replay buffer.
+
+18 Nov 2023
+
+- Tested PyTorch implementation on the testing environment where observation are uniform random with +1 reward if action==0 (or any other number) and 0 if not. Algorithm learns the optimal policy (experiment in test_code).
+- Checking whether the issue is due to the fact that the environment is being reset when done==1, as it doesn't seem to be explicit on tensorflow code.
+- Trying to understand where the env.reset() is being called, because I can't find it! -> It seems that env.reset() is being called on agent env.step(), whenever done==1, but not yet sure. Maybe it has to do with the fact that we're using agent on train_debug.py?
+- Started recording frames during environment steps. Board is leaning on one of the two corners and isn't moving much. It doesn't seem like takeoff is happening, but maybe it has to do with the seeds that are being used? Shannon entropy was reported to be very robust so thins wasn't supposed to happen.
+- Both environments share the same version of GYM
+- Checked if it might have something to do with how the transitions are being stored in the replay buffer (experiment in test_code).
+- Noticed that RQN implementation in PyTorch has ReLu activation on the final layer of the critic network. Tensorflow code has no activation function on the last layer of the critic network. Will change this and leave code running.

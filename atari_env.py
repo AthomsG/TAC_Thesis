@@ -4,9 +4,17 @@ import random
 import numpy as np
 from collections import deque
 from gym.spaces.box import Box
+from test_env import TestEnv
 
 
 def atari_env(env_id, skip=4, stack=4):
+    '''
+        Added the test_env to debug PyTorch implementation issues
+    '''
+    if env_id == 'TEST_ENV':
+        env = TestEnv(states_shape=(4, 84, 84))
+        return env
+    ########################################### for debugging
     env = gym.make(env_id)
     if 'NoFrameskip' in env_id:
         assert 'NoFrameskip' in env.spec.id
@@ -28,6 +36,7 @@ class VisualizeEnv(gym.Wrapper):
 
     def reset(self, videowriter=None, **kwargs):
         self.videowriter = videowriter
+        
         return self.env.reset(**kwargs)
 
     def step(self, action):
@@ -132,6 +141,7 @@ class EpisodicLifeEnv(gym.Wrapper):
         return obs, reward, done, info
 
     def reset(self, **kwargs):
+        # print('\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nI WAS FUCKING CALLED!!!!!!!!!!\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n')
         """Reset only when lives are exhausted.
         This way all states are still reachable even though lives are episodic,
         and the learner need not know about any of this behind-the-scenes.
@@ -168,6 +178,7 @@ class MaxAndSkipEnv(gym.Wrapper):
         return max_frame, total_reward, done, info
 
     def reset(self, **kwargs):
+        
         """Clear past frame buffer and init. to first obs. from inner env."""
         self._obs_buffer.clear()
         obs = self.env.reset(**kwargs)
@@ -193,6 +204,7 @@ class FrameWarpAndStack(gym.Wrapper):
             low=0.0, high=1.0, shape=shp, dtype=np.float32)
 
     def reset(self, **kwargs):
+        
         ob = self.env.reset(**kwargs)
         for _ in range(self.k):
             self.frames.append(self._preprocess(ob))
@@ -216,123 +228,3 @@ class FrameWarpAndStack(gym.Wrapper):
             frame, (self.width, self.height), interpolation=cv2.INTER_AREA)
         frame = frame.astype(np.float32) / 255.0
         return frame
-
-
-'''
-import cv2
-import gym
-import random
-import numpy as np
-from collections import deque
-from gym.spaces.box import Box
-
-DEBUG = False
-
-def atari_env(env_id, skip=4, stack=4):
-    env = gym.make(env_id)
-    env = VisualizeEnv(env)
-    env = EpisodicLifeEnv(env)
-    env = FrameWarpAndStack(env, stack)
-    return env
-
-
-class VisualizeEnv(gym.Wrapper):
-    def __init__(self, env):
-        gym.Wrapper.__init__(self, env)
-        self.videowriter = None
-
-    def reset(self, videowriter=None, **kwargs):
-        self.videowriter = videowriter
-        return self.env.reset(**kwargs)
-
-    def step(self, action):
-        obs, reward, done, info = self.env.step(action)
-        if self.videowriter is not None:
-            self.videowriter.append_data(obs)
-        return obs, reward, done, info
-    
-
-class EpisodicLifeEnv(gym.Wrapper):
-    def __init__(self, env):
-        """Make end-of-life == end-of-episode, but only reset on true game over.
-        Done by DeepMind for the DQN and co. since it helps value estimation.
-        """
-        gym.Wrapper.__init__(self, env)
-        self.lives = 0
-        self.was_real_done = True
-
-    def step(self, action):
-        obs, reward, done, info = self.env.step(action)
-        self.was_real_done = done
-        # check current lives, make loss of life terminal,
-        # then update lives to handle bonus lives
-        lives = self.env.unwrapped.ale.lives()
-        if lives < self.lives and lives > 0:
-            # for Qbert sometimes we stay in lives == 0 condtion for a few
-            # frames, so its important to keep lives > 0, so that we only reset
-            # once the environment advertises done.
-            done = True
-        self.lives = lives
-        info['was_real_done'] = self.was_real_done
-        return obs, reward, done, info
-
-    def reset(self, **kwargs):
-        """Reset only when lives are exhausted.
-        This way all states are still reachable even though lives are episodic,
-        and the learner need not know about any of this behind-the-scenes.
-        """
-        if self.was_real_done:
-            obs = self.env.reset(**kwargs)
-            self.lives = 0
-        else:
-            # no-op step to advance from terminal/lost life state
-            obs, _, _, info = self.env.step(0)
-            self.lives = self.env.unwrapped.ale.lives()
-        return obs
-
-
-class FrameWarpAndStack(gym.Wrapper):
-    def __init__(self, env, k, data_format='channels_first'):
-        """Stack k last frames."""
-        gym.Wrapper.__init__(self, env)
-        self.k = k
-        self.width = 84
-        self.height = 84
-        self.frames = deque([], maxlen=k)
-
-        self.data_format = data_format
-        if data_format == 'channels_last':
-            shp = (self.width, self.height, k)
-        elif data_format == 'channels_first':
-            shp = (k, self.width, self.height)
-        self.observation_space = Box(
-            low=0.0, high=1.0, shape=shp, dtype=np.float32)
-
-    def reset(self, **kwargs):
-        ob = self.env.reset(**kwargs)
-        for _ in range(self.k):
-            self.frames.append(self._preprocess(ob))
-        return self._get_ob()
-
-    def step(self, action):
-        ob, reward, done, info = self.env.step(action)
-        self.frames.append(self._preprocess(ob))
-        return self._get_ob(), reward, done, info
-
-    def _get_ob(self):
-        assert len(self.frames) == self.k
-        if self.data_format == 'channels_last':
-            return np.stack(self.frames, axis=2).astype(np.float32)
-        elif self.data_format == 'channels_first':
-            return np.array(self.frames).astype(np.float32)
-
-    def _preprocess(self, frame):
-        print(frame)
-        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
-        frame = cv2.resize(
-            frame, (self.width, self.height), interpolation=cv2.INTER_AREA)
-        frame = frame.astype(np.float32) / 255.0
-        return frame
-    
-if DEBUG: from IPython import embed; embed() 
-'''
