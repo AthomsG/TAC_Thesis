@@ -56,3 +56,13 @@ class GridWorld():
         # stack the state 4 times along a new axis for the RAC agent to process
         state = np.stack([state]*4, axis=0)
         return state
+
+# flatten state to use with MLP
+class GridWorldWrapper(GridWorld):
+    def __init__(self, grid_size=84):
+        super().__init__(grid_size)
+
+    def _get_state(self):
+        state = super()._get_state()
+        state = state[0].flatten() # I'm doing this here because I stacked 4 layers since its how the atari env is setup
+        return state

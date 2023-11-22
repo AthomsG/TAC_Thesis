@@ -71,5 +71,18 @@ self.actor_opt.step()
 
 22 Nov 2023
 
-- Turns out equation 10 was computing the gradient for both network parameters, instead of computing only for Actor network. This problem has been fixed with:
+- Turns out equation 10 was computing the gradient for both network parameters, instead of computing only for Actor network. This problem has been fixed with replacing: qvals -> qvals.detatch()
+- Still need to check if code is running as the Tensorflow implementation.
 
+Experiment Parameters:
+
+	- lambda: 0.1
+	- regularization: Shannon
+	- batch_size: 32
+	- update_target_every: 2500
+	- memory_size: 100000
+	- num_iterations: 200000
+	- learning rate: 1e-4
+	- discount factor: 0.99
+	- env: BreakoutNoFrameskip-v4
+	- learning_starts: 5000
