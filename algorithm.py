@@ -212,17 +212,3 @@ class RAC:       # default method is unregularized Actor-Critic Agent
         self.critic1.load_state_dict(checkpoint['critic1_state_dict'])
         self.critic2.load_state_dict(checkpoint['critic2_state_dict'])
         self.actor.load_state_dict(checkpoint['actor_state_dict'])
-
-agent = RAC(log_path='train_log', 
-            batch_size=32,
-            n_actions=4, #  breakout
-            # learning_starts=32,
-            memory_size=100000,
-            num_iterations=1,
-            lr=1e-4,
-            lambd=0.1
-            )
-
-agent.train('BreakoutNoFrameskip-v4')
-
-from IPython import embed; embed()
