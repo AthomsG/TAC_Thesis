@@ -1,15 +1,17 @@
 # Reinforcement Learning with RAC
 
-This repository contains the implementation of a Reinforcement Actor-Critic (RAC) model for reinforcement learning tasks. The model is implemented in PyTorch.
+Repository for Reinforcement Actor-Critic (RAC) model implementation for solving reinforcement learning tasks. This model is built using PyTorch and is designed to effectively learn policies that maximize α-Tsallis regularized expected returns in various environments.
 
 ## Structure
 
-The main components of the repository are:
+### value_networks.py
+This file contains the implementation of the Critic and Actor networks utilized in the RAC model. The Critic network is a Convolutional Neural Network (CNN) that takes a batch of 4 grayscale images of size 84x84 as input and produces a value for each possible action. The Actor network, on the other hand, takes the environment state as input and generates a policy distribution over the available actions.
 
-- `value_networks.py`: This file contains the implementation of the Critic and Actor networks used in the RAC model. The Critic network is a convolutional neural network (CNN) that takes as input a batch of 4 grayscale images of size 84x84, and outputs a value for each possible action. The Actor network is a network that takes as input the state of the environment and outputs a policy distribution over the possible actions.
+### algorithm.py
+In this file, you'll find the core implementation of the RAC model. It orchestrates the interaction between the Critic and Actor networks to learn a policy optimizing the expected return. The file includes the training loop, as well as methods for saving and loading the model.
 
-- `RAC.py`: This file contains the implementation of the RAC model, which uses the Critic and Actor networks to learn a policy that maximizes the expected return.
+### buffers.py
+Here, the Replay Buffer is implemented for storing and sampling past experiences, a crucial component in reinforcement learning.
 
-## Requirements
-
-The code is written in Python and requires PyTorch. Additionally, the `entmax` package is used for the sparsemax and entmax15 functions.
+### atari_env.py
+This file comprises the implementation of the Atari environment wrapper, responsible for preprocessing game frames before they are fed into the model.
