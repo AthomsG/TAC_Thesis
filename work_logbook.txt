@@ -50,10 +50,26 @@ self.actor_opt.step()
 
 18 Nov 2023
 
-- Tested PyTorch implementation on the testing environment where observation are uniform random with +1 reward if action==0 (or any other number) and 0 if not. Algorithm learns the optimal policy (experiment in test_code).
+- Tested PyTorch implementation on the testing environment where observation are uniform random with +1 reward if action==0 (or any other number) and 0 if not. Algorithm learns the optimal policy.
 - Checking whether the issue is due to the fact that the environment is being reset when done==1, as it doesn't seem to be explicit on tensorflow code.
 - Trying to understand where the env.reset() is being called, because I can't find it! -> It seems that env.reset() is being called on agent env.step(), whenever done==1, but not yet sure. Maybe it has to do with the fact that we're using agent on train_debug.py?
-- Started recording frames during environment steps. Board is leaning on one of the two corners and isn't moving much. It doesn't seem like takeoff is happening, but maybe it has to do with the seeds that are being used? Shannon entropy was reported to be very robust so thins wasn't supposed to happen.
+- Started recording frames during environment steps. Board is leaning on one of the two corners and isn't moving much. It doesn't seem like takeoff is happening, but maybe it has to do with the seeds that are being used? Shannon entropy was reported to be very robust.
 - Both environments share the same version of GYM
 - Checked if it might have something to do with how the transitions are being stored in the replay buffer (experiment in test_code).
-- Noticed that RQN implementation in PyTorch has ReLu activation on the final layer of the critic network. Tensorflow code has no activation function on the last layer of the critic network. Will change this and leave code running.
+- Noticed that RQN implementation in PyTorch has ReLu activation on the final layer of the critic network. Tensorflow code has no activation function on the last layer of the critic network. Will change this and leave code running. -> Episodes where longer but rewards were fewer.
+
+19 Nov 2023
+
+- Will compare value and policy losses with tensorflow model. -> loss values are completely different as the policy is positive with magnitude ~1e3 and tensorflow has negative ~1e-1. Maybe the policy loss is not being properly computed (equation 10). I think something suspicious is happening with the variable 'action_policy' in the compute_gradient method. I still haven't checked it, but maybe it also has to do with the environment? because in my pytorch implementation I'm not using agent class...
+- Created new Gridworld Test environment, where agent starts in the center of the grid and has ending point on the 4 corners.
+
+21 Nov 2023
+
+- Implemented simplified version of the algorithm (2 MLP instead of CNN network) to check algorithm. I think I found the error. equation 10 was poorly implemented:
+
+ Instead of using action_(...) -> p_loss = (policy * (- self.lambd * phi - qvals)).sum()/self.batch_size
+
+22 Nov 2023
+
+- Turns out equation 10 was computing the gradient for both network parameters, instead of computing only for Actor network. This problem has been fixed with:
+

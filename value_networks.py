@@ -57,7 +57,6 @@ class Critic(nn.Module):
         x = self.fc1(x)
         x = F.relu(x)
         x = self.fc2(x)
-        x = F.relu(x)
         return x
 
 
