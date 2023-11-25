@@ -86,3 +86,18 @@ Experiment Parameters:
 	- discount factor: 0.99
 	- env: BreakoutNoFrameskip-v4
 	- learning_starts: 5000
+
+23 Nov 2023
+
+- Results don't seem to be quite there yet. Will now run the experiment with a breakpoint gradient step by gradient step to compare results and assess what seem to be the main differences and take it fro there. p_loss seem to have the same order of magnitude initially, but v_loss is ~10 times smaller. There's a problem with the dones batch on the PyTorch implementation. Maybe the problem is in the environment class implementation. 
+- After fixing dones not counting correctly, noticed that Critic network in both frameworks aren't outputting similar values. Maybe this has to do with weight initialisation? I think it was the case. That and the fact that it seems that v_loss in PyTorch is not being divided by batch size while in tensorflow that is the case.
+
+24 Nov 2024
+
+- There are still observable differences between implementations, namely on the policy and value loss functions. Will check on tensor value again, using breakpoints.
+- Seeds on the Tensorflow aren't producing exactly the same results!
+- Tomorrow I'll initialise all networks with the same weights.
+
+25 Nov 2025
+
+- Test code to initialize networks with the same weights. I believe this will beuseful for troubleshooting.
