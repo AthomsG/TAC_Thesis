@@ -1,9 +1,10 @@
 from collections import defaultdict, deque
 import numpy as np
 import random 
+import pickle
+from atari_env import atari_env
 
 DEBUG = False
-
 
 class Replay_Buffer(object):
     '''
@@ -35,54 +36,19 @@ class Replay_Buffer(object):
         '''
         samples = random.sample(self.mem, batch_size)
         return map(np.array, zip(*samples))
-    
 
-class Results_Buffer(object):
-    '''
-    This is the Results Buffer class. It's a part of an Actor-Critic algorithm implementation.
-    The Results Buffer is a data structure to store the results of the agent's actions,
-    allowing us to track the agent's performance over time. This helps in monitoring the learning progress.
-    '''
-    def __init__(self, rewards_history=[]):
-        '''
-        Initialize the Results Buffer with an optional initial rewards history.
-        '''
-        self.buffer = defaultdict(list)
-        assert isinstance(rewards_history, list)
-        self.rewards_history = rewards_history
+class debug_Replay_Buffer(Replay_Buffer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
-    def update_infos(self, info, total_t):
-        '''
-        Update the Results Buffer with new information from the agent's actions on the environment (environment information).
-        '''
-        for key in info:
-            msg = info[key]
-            self.buffer['reward'].append(msg[b'reward'])
-            self.buffer['length'].append(msg[b'length'])
-            if b'real_reward' in msg:
-                self.buffer['real_reward'].append(msg[b'real_reward'])
-                self.buffer['real_length'].append(msg[b'real_length'])
-                self.rewards_history.append(
-                    [total_t, key, msg[b'real_reward']])
+    def save(self, file_path):
+        with open(file_path, 'wb') as f:
+            pickle.dump(self.mem, f)
 
-    def update_summaries(self, summaries): # não percebo para que preciso deste método
-        '''
-        Update the Results Buffer with new summaries of the agent's training (store the loss functions).
-        '''
-        for key in summaries:
-            self.buffer[key].append(summaries[key])
+    def load(self, file_path):
+        with open(file_path, 'rb') as f:
+            self.mem = pickle.load(f)
 
-    def add_to_writer(self, summary_writer, total_t, time):
-        '''
-        Add all scalars to the TensorBoar SummaryWriter.
-        '''
-        s = {'time': time}
-        for key in self.buffer:
-            if self.buffer[key]:
-                s[key] = np.mean(self.buffer[key])
-                self.buffer[key].clear()
-
-        for key in s:
-            summary_writer.add_scalar(key, s[key], total_t)
-    
-if DEBUG: from IPython import embed; embed()
+    def sample(self, batch_size):
+        samples = list(self.mem)[:batch_size]
+        return map(np.array, zip(*samples))

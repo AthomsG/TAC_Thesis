@@ -100,4 +100,14 @@ Experiment Parameters:
 
 25 Nov 2025
 
-- Test code to initialize networks with the same weights. I believe this will beuseful for troubleshooting.
+- Test code to initialize networks with the same weights. I believe this will be useful for troubleshooting.
+
+26 Nov 2024
+
+- Replay buffer implementation is the exact same on both cases. Will check both methods on the same batch to see if it helps finding where the error comes from. Saved replay buffer copy as 'buffer copy.py'.
+- Noticed that 'global_step' in Tensorflow is number of gradient steps the agent has taken... maybe this is a source of difference between algorithms.
+
+1 Dec 2024
+
+- So I think I'll focus on sum of rewards and episode length as performance metrics. Will ask Zita and André if the differences between loss functions can be explained by the Auto Grad libraries or if there's something more 'mysterious' at play...
+- PyTorch implementation has moment of 'catastrophic forgetting' at some point (when experiment slows down a lot...). Maybe gradient clipping on the policy will help?
