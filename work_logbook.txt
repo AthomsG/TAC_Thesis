@@ -92,22 +92,41 @@ Experiment Parameters:
 - Results don't seem to be quite there yet. Will now run the experiment with a breakpoint gradient step by gradient step to compare results and assess what seem to be the main differences and take it fro there. p_loss seem to have the same order of magnitude initially, but v_loss is ~10 times smaller. There's a problem with the dones batch on the PyTorch implementation. Maybe the problem is in the environment class implementation. 
 - After fixing dones not counting correctly, noticed that Critic network in both frameworks aren't outputting similar values. Maybe this has to do with weight initialisation? I think it was the case. That and the fact that it seems that v_loss in PyTorch is not being divided by batch size while in tensorflow that is the case.
 
-24 Nov 2024
+24 Nov 2023
 
 - There are still observable differences between implementations, namely on the policy and value loss functions. Will check on tensor value again, using breakpoints.
 - Seeds on the Tensorflow aren't producing exactly the same results!
 - Tomorrow I'll initialise all networks with the same weights.
 
-25 Nov 2025
+25 Nov 2023
 
 - Test code to initialize networks with the same weights. I believe this will be useful for troubleshooting.
 
-26 Nov 2024
+26 Nov 2023
 
 - Replay buffer implementation is the exact same on both cases. Will check both methods on the same batch to see if it helps finding where the error comes from. Saved replay buffer copy as 'buffer copy.py'.
 - Noticed that 'global_step' in Tensorflow is number of gradient steps the agent has taken... maybe this is a source of difference between algorithms.
 
-1 Dec 2024
+1 Dec 2023
 
 - So I think I'll focus on sum of rewards and episode length as performance metrics. Will ask Zita and André if the differences between loss functions can be explained by the Auto Grad libraries or if there's something more 'mysterious' at play...
 - PyTorch implementation has moment of 'catastrophic forgetting' at some point (when experiment slows down a lot...). Maybe gradient clipping on the policy will help?
+
+12 Dec 2023
+
+- So as a final test I'll check if there are differences in how the loss functions are computed in both frameworks: Both libraries output the same loss for the same input.
+- Ran experiment for the Boxing environment with alpha=2 Tsallis entropy regularization and temperature 0.1 (reported on the paper to have the best results). The optimal policy is a Sparsemax policy.
+
+15 Dec 2023
+
+- Forgot to update the 'phi' values (was using Shannon entropy on the objective function). This change has now been added.
+- Updated phi matches natural logarithm. 3 runs of 88k environment steps were performed and results match what is to be expected.
+
+16 Dec 2023
+
+- All phi values were 0 and it had to do with the epsilon value (apparently it was too small).
+- I had forgotten to consider that the 'update_target_every' step regards GRADIENT steps and not ENVIRONMENT STEPS. Maybe that's why my algorithm converges faster than its tensorflow counterpart
+
+17 Dec 2023
+
+- Will check if Tensorflow Actor network architecture yields better results than alpha-entmax transformation.
