@@ -1,5 +1,7 @@
 # adicionei um comentário extra
 
+# adicionei mais umm para experimentarmos umma cena
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
