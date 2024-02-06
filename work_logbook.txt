@@ -125,8 +125,61 @@ Experiment Parameters:
 16 Dec 2023
 
 - All phi values were 0 and it had to do with the epsilon value (apparently it was too small).
-- I had forgotten to consider that the 'update_target_every' step regards GRADIENT steps and not ENVIRONMENT STEPS. Maybe that's why my algorithm converges faster than its tensorflow counterpart
+- I had forgotten to consider that the 'update_target_every' step regards GRADIENT steps and not ENVIRONMENT STEPS. Maybe that's why my algorithm converges faster than its tensorflow counterpart.
 
 17 Dec 2023
 
 - Will check if Tensorflow Actor network architecture yields better results than alpha-entmax transformation.
+
+21 Dec 2023
+
+- Will use polyak averaging instead of hard updates and see if this stabilises reward curves.
+
+2 Jan 2024
+
+- The lenghts aren't the same! When I use Actor network with the same architecture as the Tensorflow implementation (normalized ReLU layers) loss functions seem to be the same. There is something still that is hard to understand. Episode length is not the same across both implementations.
+
+16 Jan 2024
+
+- There was an error in my Pytorch impmlementation of the Tensorflow actor network. This has been corrected! (hopefully). I had forgotten to perform element-wise multiplication of the last 2 layers for the cases alpha != 1.
+
+17 Jan 2024
+
+- Started printing gradient values to spot where the 'NaN' logits come from. I'mm debugging the code in the 'troubleshoot_entmax15' directory. The problem arises in the policy network. For the entmax15, lamb = 0.1, seed 0 we get:
+
+Gradient of policy: tensor([[-0.0080, -0.0061, -0.0059, -0.0078, -0.0048, -0.0049, -0.0083, -0.0068,
+         -0.0054, -0.0058, -0.0070, -0.0045, -0.0049, -0.0074,     nan, -0.0078,
+         -0.0067, -0.0068], .....
+
+One thing I noticed is that the 'nan' entry in the gradient of the policy coincides with the entry of the action that has probability 0 of occurring. Could this be change or is there something bigger at play here? Will check if the error only happens when some policy entries are 0.
+- The problem arises whenever the policy is sparse. Will now look for the calculation that outputs a 'nan'.
+
+18 Jan 2024
+
+- I will check if the 'nan' gradients arise from a negative value close to 0 in the policy. For example:
+
+In [9]: policy = torch.tensor([-0.0000000001])
+
+In [10]: - (policy**(1.5 - 1) - 1)/(1.5 * (0.5))
+Out[10]: tensor([nan])
+
+Maybe this can be the case, but I'm still not sure.
+
+24 Jan 2024
+
+- Tried clamping of the policy: policy = policy.clamp(min=1e-10).
+This helped with not having problems, however the algorithm doesn't converge.
+- Created gradient_setp_by_step.py to store code to paste on debug command line when the algorithm goes to shit. All intermediate values are being stored in an individual '.txt' inside 'debug_prints' directory.
+- Ok, I think I finally understand the problem at hand. The gradient of the policy loss (see: https://www.overleaf.com/project/651ddbcc74d7b212b0302ef7) has a term proportional to 1/policy, which isn't defined for sparse policies.
+
+28 Jan 2024
+
+- Now that I think if figured the issue with the sparse policies, I'll try to reproduce the results from 'a reguralized approach to sparse optimal policies', by changing the q-log to its particular case, to avoid non defined gradient issue. KEEP IN MIND ABOUT THE EXPERIMENT! I changed the debug variable to false, removed the IPython embed whenever the actor produces a sparse policy during gradient steps.
+
+3 Fev 2024
+
+- So actually, there's no theoretical problem with the loss function. I'm just going to use the code that works, from the SAC_discrete repo.
+
+6 Fev 2024
+
+- I've implemented the algorithm from scratch for a trivial environment, computing everything analytically. The results seem reasonable. The algorithm learns. However, for the same environment, the pytorch implementation doesn't seem to be learning. The critic loss results match, however the policy loss values don't! I believe the error is in how the policy loss is implemented.
