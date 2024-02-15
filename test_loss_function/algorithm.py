@@ -155,7 +155,7 @@ class RAC:       # default method is unregularized Actor-Critic Agent
             next_action_qvals = next_qvals.gather(1, next_actions) # Q_{\theta} ( s_{t+1}, a_{t+1} )
             next_action_log_alpha = next_log_alpha.gather(1, next_actions)    # \phi(\pi_{\psi} ( s_{t+1} | a_{t+1} ))
             # defined between equations (9) and (10)
-            targets = reward_batch + (1 - done_batch) * self.discount * (next_action_qvals + self.lambd * next_action_log_alpha)
+            targets = reward_batch + (1 - done_batch) * self.discount * (next_action_qvals - self.lambd * next_action_log_alpha)
 
         # compute value loss (equation 9)
         v_loss = F.mse_loss(action_qvals, targets)/2
