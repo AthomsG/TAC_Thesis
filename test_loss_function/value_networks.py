@@ -26,12 +26,11 @@ class Actor(nn.Module):
         x = self.fc1(x)
         # alpha - entmax is the optimal policy for Tsallis regularized MDP
         if self.alpha==1:
-            print('using softmax')
-            x = F.softmax(x, dim=0)
+            x = F.softmax(x, dim=-1)
         elif self.alpha==1.5:
-            x = entmax15(x, dim=0)
+            x = entmax15(x, dim=-1)
         elif self.alpha==2:
-            x = sparsemax(x, dim=0)
+            x = sparsemax(x, dim=-1)
         else:
-            x = entmax_bisect(x, alpha=self.alpha, dim=0) 
+            x = entmax_bisect(x, alpha=self.alpha, dim=-1) 
         return x

@@ -13,7 +13,7 @@ parser.add_argument('--learning_starts', type=int, default=1, help='Number of st
 parser.add_argument('--memory_size', type=int, default=1, help='Size of the replay memory')
 parser.add_argument('--num_iterations', type=int, default=2000, help='Number of iterations for training')
 parser.add_argument('--lr', type=float, default=5e-1, help='Learning rate')
-parser.add_argument('--lambd', type=float, default=0.1, help='Temperature Parameter')
+parser.add_argument('--lambd', type=float, default=1, help='Temperature Parameter')
 parser.add_argument('--alpha', type=float, default=1, help='Alpha value of Alpha-Tsallis entropy') # Default is Softmax Policy
 parser.add_argument('--discount', type=float, default=1, help='Discount factor for the MDP')
 parser.add_argument('--game', type=str, default='BreakoutNoFrameskip-v4', help='Name of the game')
