@@ -118,8 +118,8 @@ class RAC:       # default method is unregularized Actor-Critic Agent
     def train(self, verbose=True): # %todo I think I should add some of the atributes defined in the class instantiation in the train method
         self.__init_networks__(path_to_weights='Jupyter_Notebooks/weights') # initialize parameterized policy and Q-value functions
 
-        self.n_actions = 200
-        self.__init_networks__() # initialize parameterized policy and Q-value functions
+        # self.n_actions = 200
+        # self.__init_networks__() # initialize parameterized policy and Q-value functions
         # self.print_network_parameters()
         # self.save_network_parameters('weights/simple')
     

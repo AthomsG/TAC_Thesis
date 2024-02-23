@@ -17,7 +17,7 @@ class Critic(nn.Module):
 class Actor(nn.Module):
     def __init__(self, n_actions, alpha=1): # fixed alpha for entmax transformation
         super(Actor, self).__init__()
-        self.alpha     = alpha
+        self.alpha = alpha
         # Linear Layer
         self.fc1 = nn.Linear(in_features=n_actions,
                              out_features=n_actions)
