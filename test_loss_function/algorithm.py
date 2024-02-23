@@ -3,19 +3,49 @@ import torch.nn.functional as F
 
 from tqdm import tqdm
 import numpy as np
+import os
 
 from buffers import ReplayBuffer
 from value_networks import Actor, Critic
 from environment import test_env
 
+# THIS CODE WORKS! WHAT WAS HAPPENING IS THAT I WASN'T RESETING THE STATE WITH THE NEXT_STATE!
+
+# I think the differences from here and the jupyter notebook come from the fact that I'm using and not updating the target critic
+def load_weights(path_to_weights):
+    # actor parameters
+    actor_weights = {}
+    for file in os.listdir(path_to_weights):
+        if 'actor' in file:
+            param_name = file.replace('actor_', '').replace('.txt', '')
+            actor_weights[param_name] = np.loadtxt(os.path.join(path_to_weights, file))
+    
+    W_actor = actor_weights['simple_fc1.weight']
+    b_actor = actor_weights['simple_fc1.bias']
+    
+    # critic parameters
+    critic_weights = {}
+    for file in os.listdir(path_to_weights):
+        if 'critic' in file:
+            param_name = file.replace('critic_', '').replace('.txt', '')
+            critic_weights[param_name] = np.loadtxt(os.path.join(path_to_weights, file))
+    
+    W_critic = critic_weights['simple_fc1.weight']
+    b_critic = critic_weights['simple_fc1.bias']
+
+    return {'W_actor': W_actor,
+            'b_actor': b_actor,
+            'W_critic': W_critic,
+            'b_critic': b_critic}
+
 class RAC:       # default method is unregularized Actor-Critic Agent
     def __init__(self,
-                 discount=1,         # discount factor
-                 lr=5e-1,               # optimizer learning rate (the same for all networks)
+                 discount=0.99,         # discount factor
+                 lr=1e-5,               # optimizer learning rate (the same for all networks)
                  alpha=1,               # alpha-Tsallis value
-                 lambd=0.1,            # lambda value (regularization temperature)
+                 lambd=1,            # lambda value (regularization temperature)
                  batch_size=1,         # batch size for training the function approximators
-                 num_iterations=2000, # number of environment steps
+                 num_iterations=10, # number of environment steps
                  gradient_step_every=1, # number of env steps between each gradient step
                  learning_starts=1,  # how many environment steps are taken to fill the replay buffer
                  memory_size=1,    # replay buffer size
@@ -33,7 +63,7 @@ class RAC:       # default method is unregularized Actor-Critic Agent
         self.gradient_step_every = gradient_step_every
         self.num_iterations = num_iterations
 
-    def __init_networks__(self):
+    def __init_networks__(self, path_to_weights=False):
         # Critic network
         self.critic1 = Critic(self.n_actions)
         # Target Critic network
@@ -42,8 +72,21 @@ class RAC:       # default method is unregularized Actor-Critic Agent
         # Actor network
         self.actor = Actor(self.n_actions, self.alpha)
         # Network's optimizers
-        self.critic1_opt = torch.optim.Adam(self.critic1.parameters(), lr=self.lr)
-        self.actor_opt   = torch.optim.Adam(self.actor.parameters(), lr=self.lr)
+        self.critic1_opt = torch.optim.SGD(self.critic1.parameters(), lr=self.lr)
+        self.actor_opt   = torch.optim.SGD(self.actor.parameters(), lr=self.lr)
+        
+        if path_to_weights:
+            weights = load_weights(path_to_weights)
+
+            # Set the weights for the actor
+            self.actor.fc1.weight.data = torch.from_numpy(weights['W_actor'].copy()).float()
+            self.actor.fc1.bias.data = torch.from_numpy(weights['b_actor'].copy()).float()
+
+            # Set the weights for the critic
+            self.critic1.fc1.weight.data = torch.from_numpy(weights['W_critic'].copy()).float()
+            self.critic1.fc1.bias.data = torch.from_numpy(weights['b_critic'].copy()).float()
+
+            self.target_critic1.load_state_dict(self.critic1.state_dict())
 
     def print_network_parameters(self):
         print("Actor Network Parameters:")
@@ -73,6 +116,9 @@ class RAC:       # default method is unregularized Actor-Critic Agent
             np.savetxt(f'{filename}_target_critic_{name}.txt', param.cpu().detach().numpy())
 
     def train(self, verbose=True): # %todo I think I should add some of the atributes defined in the class instantiation in the train method
+        self.__init_networks__(path_to_weights='Jupyter_Notebooks/weights') # initialize parameterized policy and Q-value functions
+
+        self.n_actions = 200
         self.__init_networks__() # initialize parameterized policy and Q-value functions
         # self.print_network_parameters()
         # self.save_network_parameters('weights/simple')
@@ -89,7 +135,7 @@ class RAC:       # default method is unregularized Actor-Critic Agent
             range_func = range(self.learning_starts)
 
         for _ in range_func:
-            with torch.no_grad(): pi = self.actor(torch.tensor(state).float().unsqueeze(0))
+            with torch.no_grad(): pi = self.actor(torch.tensor(state).unsqueeze(0))
             action = torch.argmax(pi)
             next_state, reward, done, info = env.step(action)
             self.replay_buffer.add(state, action, reward, next_state, done) # we squeeze state here, because before they had dimention (BATCH_SIZE, 1, 4, 84, 84) when sampled from replay buffer
@@ -106,9 +152,10 @@ class RAC:       # default method is unregularized Actor-Critic Agent
 
         for environment_step in range_func: # $self.gradient_step_every environment steps, 1 gradient step
             # environment step
-            with torch.no_grad(): pi = self.actor(torch.tensor(state).float().unsqueeze(0))
+            with torch.no_grad(): pi = self.actor(torch.tensor(state).unsqueeze(0))
             action = torch.argmax(pi, dim=1)
             next_state, reward, done, info = env.step(action)
+            summaries['reward'].append(reward)
             # store transitions in replay buffer
             self.replay_buffer.add(state, action, reward, next_state, done)
             state = next_state
@@ -119,6 +166,7 @@ class RAC:       # default method is unregularized Actor-Critic Agent
                 for key in summary:
                     summaries[key].append(summary[key])
 
+        rewards = [sum(summaries['reward'][i:i+100]) for i in range(0, len(summaries['reward']), 100)]
         from IPython import embed; embed()
                             
     def log_alpha(self, pi):
@@ -129,8 +177,12 @@ class RAC:       # default method is unregularized Actor-Critic Agent
 
     def Tsallis_Entropy(self, pi):
             return - pi * self.log_alpha(pi)
+    
+    def update_target(self):
+        self.target_critic1.load_state_dict(self.critic1.state_dict())
 
     def perform_gradient_step(self, state_batch, action_batch, reward_batch, next_state_batch, done_batch):
+        print('performing gradient step')
         # compute Q-values and policy
         qvals  = self.critic1(state_batch).squeeze() # Q_{\theta} ( s_t, . )
         policy = self.actor(state_batch).squeeze()   # \pi_{\psi} ( s_t, . )
@@ -147,7 +199,6 @@ class RAC:       # default method is unregularized Actor-Critic Agent
             if self.batch_size == 1: 
                 next_qvals  = next_qvals.unsqueeze(0)
                 next_policy = next_policy.unsqueeze(0)
-
             # compute phi
             next_log_alpha = self.log_alpha(next_policy)  # \phi(\pi_{\psi} ( s_{t+1} | . ))
             # sample actions
@@ -160,7 +211,9 @@ class RAC:       # default method is unregularized Actor-Critic Agent
         # compute value loss (equation 9)
         v_loss = F.mse_loss(action_qvals, targets)/2
         # compute policy loss (equation 10)
-        p_loss = (policy * (self.lambd * log_alpha/self.alpha - qvals.detach())).sum().mean()
+        linear_term  = policy * qvals.detach()
+        entropy_term = self.Tsallis_Entropy(policy) # Shannon Entropy
+        p_loss = -(linear_term + entropy_term).sum().mean()
         # update Critic
         self.critic1_opt.zero_grad()
         v_loss.backward()
@@ -181,5 +234,11 @@ class RAC:       # default method is unregularized Actor-Critic Agent
                 print(name, param.grad.numpy())
         self.actor_opt.step()
 
+        # update target critic
+        self.update_target()
+
         summaries = {'v_loss': v_loss.item(), 'p_loss': p_loss.item()}
+        # from IPython import embed; embed()
         return summaries
+    
+    # rewards: [sum(summaries['reward'][i:i+10]) for i in range(0, len(summaries['reward']), 10)]

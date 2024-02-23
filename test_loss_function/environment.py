@@ -4,11 +4,11 @@ class test_env():
     def __init__(self, n_actions):
         self.n_actions = n_actions
         self.step_i = 0
-        self.state  = np.linspace(1, self.n_actions, self.n_actions)
+        self.state  = np.linspace(1, self.n_actions, self.n_actions, dtype=np.float32)
 
     def reset(self):
         self.step_i = 0
-        self.state  = np.linspace(1, self.n_actions, self.n_actions)
+        self.state  = np.linspace(1, self.n_actions, self.n_actions, dtype=np.float32)
         return self.state
     
     def print_state(self):
@@ -17,7 +17,7 @@ class test_env():
     def step(self, action):
         self.step_i += 1
         reward       = self.state[action]
-        next_state   = np.sin(np.linspace(1, self.n_actions, self.n_actions) + self.step_i)
+        next_state   = np.sin(np.linspace(1, self.n_actions, self.n_actions, dtype=np.float32) + self.step_i)
         self.state   = next_state
 
         return next_state, reward, 0, 'no info'
