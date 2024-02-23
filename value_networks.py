@@ -107,9 +107,10 @@ class Actor(nn.Module):
         elif self.alpha==2:
             x = sparsemax(x, dim=1)
         else:
-            x = entmax_bisect(x, alpha=self.alpha) 
+            x = entmax_bisect(x, alpha=self.alpha, dim=1) 
         return x
     
+# Xing Li Actor architecture 
 class Actor_Tensorflow(nn.Module):
     def __init__(self, n_actions, alpha=1):
         super(Actor_Tensorflow, self).__init__()
