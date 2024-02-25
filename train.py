@@ -7,8 +7,8 @@ parser = argparse.ArgumentParser(description='Train RAC agent')
 
 parser.add_argument('--batch_size', type=int, default=32, help='Batch size for training')
 parser.add_argument('--learning_starts', type=int, default=5000, help='Number of steps before learning starts')
-parser.add_argument('--memory_size', type=int, default=1000, help='Size of the replay memory')
-parser.add_argument('--num_iterations', type=int, default=1000, help='Number of iterations for training')
+parser.add_argument('--memory_size', type=int, default=10000, help='Size of the replay memory')
+parser.add_argument('--num_iterations', type=int, default=500000, help='Number of iterations for training')
 parser.add_argument('--lr', type=float, default=1e-4, help='Learning rate')
 parser.add_argument('--lambd', type=float, default=1, help='Temperature Parameter')
 parser.add_argument('--alpha', type=float, default=1, help='Alpha value of Alpha-Tsallis entropy') # Default is Softmax Policy
@@ -27,7 +27,7 @@ import numpy as np; np.random.seed(args.seed)
 import random; random.seed(args.seed)
 
 # directory where tensorboard quantities will be stored
-log_dir = 'env_{}_temp_{}_alpha_{}_seed_{}'.format(args.game_name[:-14], args.lambd, args.alpha, args.seed)
+log_dir = '{}_temp_{}_alpha_{}_seed_{}'.format(args.game_name[:-14], args.lambd, args.alpha, args.seed)
 
 # experiment setup
 agent = RAC(batch_size=args.batch_size,

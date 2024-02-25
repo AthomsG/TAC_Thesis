@@ -4,16 +4,22 @@
 mkdir -p train_log
 mkdir -p train_log/$1 # $1 is the environment name that is passed
 
-# define an array of seed values
-seeds=(1)
+# define an array of values to be used in experiments
+seeds=(0)
+lambd=(0.1 1)
+alpha=(1 1.5 2)
 
 for seed in "${seeds[@]}"; do
-    # define the log file with the specified format
-    log_dir="train_log/$1/rac_alpha2_lambd0.1_seed_${seed}.log"
-    # run the Python script and redirect the output to the log file
-    python -u train.py --game $1 --alpha 2 --lambd 0.1 --seed $seed > $log_dir 2>&1 &
+    for lam in "${lambd[@]}"; do
+        for alp in "${alpha[@]}"; do
+            # define the log file where terminal outputs are stored
+            log_dir="train_log/$1/temp_${lam}_alpha_${alp}_seed_${seed}.log"
+            # run Python script and redirect the output to log file
+            python -u train.py --game_name $1 --alpha $alp --lambd $lam --seed $seed > $log_dir 2>&1 &
+        done
+    done
 done
 
 echo "All processes have started!"
 
-# pkill -f "train.py --game $1" # to kill all started processes
+# pkill -9 -f "train.py --game $1" # to kill all started processes

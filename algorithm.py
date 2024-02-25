@@ -44,7 +44,7 @@ class RAC:       # default method is unregularized Actor-Critic Agent
         self.num_iterations = num_iterations
         self.env_id = env_id
         # Tensorboard SummaryWriter to log relevant values
-        self.writer = SummaryWriter(log_dir='tensorboard_logs/' + log_dir)
+        self.writer = SummaryWriter(log_dir="tensorboard_logs/{}/".format(env_id[:-14]) + log_dir)
 
     def __init_networks__(self):
         # Critic network
@@ -58,11 +58,17 @@ class RAC:       # default method is unregularized Actor-Critic Agent
         self.critic1_opt = torch.optim.Adam(self.critic1.parameters(), lr=self.lr)
         self.actor_opt   = torch.optim.Adam(self.actor.parameters(), lr=self.lr)
 
-    def train(self, verbose=True): # %todo I think I should add some of the atributes defined in the class instantiation in the train method
-        
-        env = atari_env(env_id=self.env_id, skip=4, stack=4)
-        state = env.reset() # initialize environment
-        self.n_actions = env.action_space.n # get actions space cardinality 
+    def perform_environment_step(self, state):
+        with torch.no_grad(): pi = self.actor(torch.tensor(state).unsqueeze(0))
+        action = Categorical(pi).sample()
+        next_state, reward, done, info = self.env.step(action)
+        self.replay_buffer.add(state, action, reward, next_state, done)
+        return next_state, reward, done, info
+
+    def train(self, verbose=True):
+        self.env = atari_env(env_id=self.env_id, skip=4, stack=4)
+        state = self.env.reset() # initialize environment
+        self.n_actions = self.env.action_space.n # get actions space cardinality 
 
         self.__init_networks__() # initialize parameterized policy and Q-value functions
 
@@ -77,14 +83,11 @@ class RAC:       # default method is unregularized Actor-Critic Agent
             range_func = range(self.learning_starts)
 
         for _ in range_func:
-            with torch.no_grad(): pi = self.actor(torch.tensor(state).unsqueeze(0))
-            action = torch.argmax(pi)
-            next_state, reward, done, info = env.step(action)
-            self.replay_buffer.add(state, action, reward, next_state, done) # we squeeze state here, because before they had dimention (BATCH_SIZE, 1, 4, 84, 84) when sampled from replay buffer
-            if done: state = env.reset() # reset environment if episode has ended
+            next_state, reward, done, info = self.perform_environment_step(state)
+            if done: state = self.env.reset() # reset environment if episode has ended
             else: state = next_state
 
-        state = env.reset()     # reset environment
+        state = self.env.reset()     # reset environment
 
         # start training
         if verbose:
@@ -94,14 +97,10 @@ class RAC:       # default method is unregularized Actor-Critic Agent
 
         for environment_step in range_func: # $self.gradient_step_every environment steps, 1 gradient step
             # environment step
-            with torch.no_grad(): pi = self.actor(torch.tensor(state).unsqueeze(0))
-            action = torch.argmax(pi, dim=1)
-            next_state, reward, done, info = env.step(action)
+            next_state, reward, done, info = self.perform_environment_step(state)
             summaries['reward'].append(reward)
-            # store transitions in replay buffer
-            self.replay_buffer.add(state, action, reward, next_state, done)
             if done:
-                state = env.reset()
+                state = self.env.reset()
                 count_episods += 1
             else:
                 state = next_state
@@ -134,11 +133,12 @@ class RAC:       # default method is unregularized Actor-Critic Agent
         if self.alpha == 1:
             return torch.log(pi)
         else:
-            return (torch.pow(pi, self.alpha-1)-1)/(self.alpha * (self.alpha-1))
+            return (torch.pow(pi, 1 - self.alpha) - 1)/(1 - self.alpha)
 
     def Tsallis_Entropy(self, pi):
-            return - pi * self.log_alpha(pi)
+            return - pi * self.log_alpha(pi)/self.alpha
     
+    # hard update
     def update_target(self):
         self.target_critic1.load_state_dict(self.critic1.state_dict())
 
@@ -160,7 +160,7 @@ class RAC:       # default method is unregularized Actor-Critic Agent
             # compute phi
             next_log_alpha = self.log_alpha(next_policy)  # \phi(\pi_{\psi} ( s_{t+1} | . ))
             # sample actions
-            next_actions = torch.argmax(next_policy, dim=1).reshape(-1, 1) # a_{t+1} ~ \pi_{\psi} ( s_{t+1}, . )
+            next_actions = Categorical(next_policy).sample().reshape(-1, 1) # a_{t+1} ~ \pi_{\psi} ( s_{t+1}, . )
             next_action_qvals = next_qvals.gather(1, next_actions) # Q_{\theta} ( s_{t+1}, a_{t+1} )
             next_action_log_alpha = next_log_alpha.gather(1, next_actions)    # \phi(\pi_{\psi} ( s_{t+1} | a_{t+1} ))
             # defined between equations (9) and (10)
