@@ -7,7 +7,7 @@ parser = argparse.ArgumentParser(description='Train RAC agent')
 
 parser.add_argument('--batch_size', type=int, default=32, help='Batch size for training')
 parser.add_argument('--learning_starts', type=int, default=5000, help='Number of steps before learning starts')
-parser.add_argument('--memory_size', type=int, default=10000, help='Size of the replay memory')
+parser.add_argument('--memory_size', type=int, default=100000, help='Size of the replay memory')
 parser.add_argument('--num_iterations', type=int, default=500000, help='Number of iterations for training')
 parser.add_argument('--lr', type=float, default=1e-4, help='Learning rate')
 parser.add_argument('--lambd', type=float, default=1, help='Temperature Parameter')
