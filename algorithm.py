@@ -300,5 +300,9 @@ class RAC:
         """Soft update model parameters through Polyak averaging.
         θ_target = τ*θ_local + (1 - τ)*θ_target
         """
+    def soft_update(self):
+        """Soft update model parameters through Polyak averaging.
+        θ_target = τ*θ_local + (1 - τ)*θ_target
+        """
         for target_param, local_param in zip(self.target_critic1.parameters(), self.critic1.parameters()):
-            target_param.data.copy_(self.tau*local_param.data + (1.0-self.tau)*target_param.data)ten
+            target_param.data.copy_(self.tau*local_param.data + (1.0-self.tau)*target_param.data)
