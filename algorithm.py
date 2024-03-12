@@ -13,7 +13,6 @@ from buffers import ReplayBuffer
 from value_networks import Actor, Critic
 from environment import atari_env
 
-
 def mean_wasserstein_distance(pis_1, pis_2):
     pis_1 = pis_1.detach().numpy()
     pis_2 = pis_2.detach().numpy()
@@ -21,11 +20,6 @@ def mean_wasserstein_distance(pis_1, pis_2):
     distances = [wasserstein_distance(pi_1, pi_2) for pi_1, pi_2 in zip(pis_1, pis_2)]
 
     return np.mean(distances)
-
-'''
-# Open tensorboard with:
-# tensorboard --logdir=tensorboard_logs --port 6007
-'''
 
 class RAC:       
     def __init__(self,
@@ -68,12 +62,12 @@ class RAC:
 
     def __init_networks__(self):
         # Critic network
-        self.critic1 = Critic(self.n_actions)
+        self.critic1 = Critic(self.n_actions).to(self.device)
         # Target Critic network
-        self.target_critic1 = Critic(self.n_actions)
+        self.target_critic1 = Critic(self.n_actions).to(self.device)
         self.target_critic1.load_state_dict(self.critic1.state_dict())
         # Actor network
-        self.actor = Actor(self.n_actions, self.alpha)
+        self.actor = Actor(self.n_actions, self.alpha).to(self.device)
         # Network's optimizers
         self.critic1_opt = torch.optim.Adam(self.critic1.parameters(), lr=self.lr)
         self.actor_opt   = torch.optim.Adam(self.actor.parameters(), lr=self.lr)
@@ -220,7 +214,7 @@ class RAC:
                         start = time.time()
 
     def perform_environment_step(self, state, deterministic=False):
-        with torch.no_grad(): pi = self.actor(torch.tensor(state).unsqueeze(0))
+        with torch.no_grad(): pi = self.actor(torch.tensor(state).unsqueeze(0)).to(self.device)
         self.sparse_actions += (pi==0).sum().item() # count sparse actions
         self.all_actions += self.n_actions
         if deterministic:
