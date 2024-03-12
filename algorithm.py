@@ -214,7 +214,7 @@ class RAC:
                         start = time.time()
 
     def perform_environment_step(self, state, deterministic=False):
-        with torch.no_grad(): pi = self.actor(torch.tensor(state).unsqueeze(0)).to(self.device)
+        with torch.no_grad(): pi = self.actor(torch.tensor(state).unsqueeze(0).to(self.device))
         self.sparse_actions += (pi==0).sum().item() # count sparse actions
         self.all_actions += self.n_actions
         if deterministic:
