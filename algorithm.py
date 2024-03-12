@@ -75,14 +75,14 @@ class RAC:
     #  -- Summary Methods -- %todo implement as a class
     def __init_summaries__(self):
         # tensorboard quantities
-        self.summaries = {'v_loss': {'sum': 0, 'count': 0},          # value loss values during training 
-                          'p_loss': {'sum': 0, 'count': 0},          # policy loss values during training
-                          'reward': {'sum': 0, 'count': 0},          # rewards during environment steps
+        self.summaries = {'v_loss': {'sum': 0, 'count': 0},          # value loss values during training  - Average value loss PER GRADIENT STEP
+                          'p_loss': {'sum': 0, 'count': 0},          # policy loss values during training - Average policy loss PER GRADIENT STEP
+                          'reward': {'sum': 0, 'count': 1},          # rewards during environment steps   - Average reward PER EPISODE
                           'max_actor_grad': 0,                       # maximum L1 gradient norm for the actor network
                           'max_critic_grad': 0,                      # maximum L1 gradient norm for the critic network
-                          'tsallis_entropy': {'sum': 0, 'count': 0}, # Tsallis entropy with run's alpha value
+                          'tsallis_entropy': {'sum': 0, 'count': 0}, # Tsallis entropy with run's alpha value - Average self.alpha Tsallis entropy PER STEP
                           'alpha_2_entropy': {'sum': 0, 'count': 0}, # alpha-2 Tsallis entropy used across experiments to compare uncertainty during training
-                          'wsn_distance': {'sum': 0, 'count': 0},    # Wasserstein distance between policies of same states after gradient step
+                          'wsn_distance': {'sum': 0, 'count': 0},    # Wasserstein distance between policies of same states after gradient step - Average Wasserstein Distance PER GRADIENT STEP
                           # probabilities of each action
                           **{f'action_probs_{i}': {'sum': 0, 'count': 0} for i in range(self.n_actions)}
                         }
@@ -92,13 +92,15 @@ class RAC:
             if isinstance(self.summaries[name], dict):
                 self.summaries[name]['sum'] = 0
                 self.summaries[name]['count'] = 0
+                if name == 'reward':
+                    self.summaries[name]['count'] = 1
             else:
                 self.summaries[name] = 0
 
-    def update_summary(self, name, value):
+    def update_summary(self, name, value, count=1):
         if isinstance(self.summaries[name], dict):
             self.summaries[name]['sum'] += value
-            self.summaries[name]['count'] += 1
+            self.summaries[name]['count'] += count
         else:
             self.summaries[name] = max(self.summaries[name], value)
 
@@ -163,7 +165,6 @@ class RAC:
             next_state, reward, done, info = self.perform_environment_step(state, deterministic=self.deterministic)
             if done:
                 state = self.env.reset()
-                count_episods += 1
             else:
                 state = next_state
 
@@ -182,6 +183,7 @@ class RAC:
 
                 # log onto tensorboard
                 if (environment_step) % (self.log_every * self.gradient_step_every) == 0:
+                    count_episodes = self.summaries['reward']['count']
                     gradient_step = environment_step/self.gradient_step_every
                     # log environment quantities
                     self.log_to_tensorboard('reward', gradient_step)
@@ -204,7 +206,6 @@ class RAC:
 
                     # reset quantities
                     self.reset_summaries()
-                    count_episods = 1
                     self.sparse_actions = 0
                     self.all_actions = 0
 
@@ -227,7 +228,7 @@ class RAC:
         #  -- store monitored quantities -- 
 
         # Update running sums and counts
-        self.update_summary('reward', reward)
+        self.update_summary('reward', reward, count=done) # only add to count if end of episode
         self.update_summary('tsallis_entropy', self.Tsallis_Entropy(pi).sum().item())
         self.update_summary('alpha_2_entropy', (- pi * (pi - 1)/2).sum().item())
 
@@ -293,13 +294,12 @@ class RAC:
         
     # -- Target Update -- 
     
-    def hard_update(self):
+    def hard_update(self): 
+        """Hard update model parameters.
+        θ_target = θ_local
+        """
         self.target_critic1.load_state_dict(self.critic1.state_dict())
 
-    def soft_update(self):
-        """Soft update model parameters through Polyak averaging.
-        θ_target = τ*θ_local + (1 - τ)*θ_target
-        """
     def soft_update(self):
         """Soft update model parameters through Polyak averaging.
         θ_target = τ*θ_local + (1 - τ)*θ_target
