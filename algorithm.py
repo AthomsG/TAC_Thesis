@@ -14,8 +14,8 @@ from value_networks import Actor, Critic
 from environment import atari_env
 
 def mean_wasserstein_distance(pis_1, pis_2):
-    pis_1 = pis_1.detach().numpy()
-    pis_2 = pis_2.detach().numpy()
+    pis_1 = pis_1.detach().cpu().numpy()
+    pis_2 = pis_2.detach().cpu().numpy()
 
     distances = [wasserstein_distance(pi_1, pi_2) for pi_1, pi_2 in zip(pis_1, pis_2)]
 
@@ -301,4 +301,4 @@ class RAC:
         θ_target = τ*θ_local + (1 - τ)*θ_target
         """
         for target_param, local_param in zip(self.target_critic1.parameters(), self.critic1.parameters()):
-            target_param.data.copy_(self.tau*local_param.data + (1.0-self.tau)*target_param.data)
+            target_param.data.copy_(self.tau*local_param.data + (1.0-self.tau)*target_param.data)ten
