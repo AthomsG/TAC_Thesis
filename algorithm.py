@@ -6,20 +6,11 @@ from torch.nn.utils import clip_grad_norm_
 from tqdm import tqdm
 import time
 import numpy as np
-from scipy.stats import wasserstein_distance
 
-from torch.utils.tensorboard import SummaryWriter
+from summary import Summary, mean_wasserstein_distance
 from buffers import ReplayBuffer
 from value_networks import Actor, Critic
 from environment import atari_env
-
-def mean_wasserstein_distance(pis_1, pis_2):
-    pis_1 = pis_1.detach().cpu().numpy()
-    pis_2 = pis_2.detach().cpu().numpy()
-
-    distances = [wasserstein_distance(pi_1, pi_2) for pi_1, pi_2 in zip(pis_1, pis_2)]
-
-    return np.mean(distances)
 
 class RAC:       
     def __init__(self,
@@ -52,12 +43,11 @@ class RAC:
         self.update_target_every = update_target_every
         self.num_iterations = num_iterations
         self.env_id = env_id
+        self.log_dir = log_dir
         self.deterministic = deterministic
-        # Tensorboard SummaryWriter to log relevant values
-        self.writer = SummaryWriter(log_dir="tensorboard_logs/{}/".format(env_id[:-14]) + log_dir)
-        # Gradient Clipping
+        # gradient Clipping
         self.clip_grad_param = 1
-        # Polyak Averaging
+        # polyak Averaging constant
         self.tau = 1e-2
 
     def __init_networks__(self):
@@ -71,44 +61,8 @@ class RAC:
         # Network's optimizers
         self.critic1_opt = torch.optim.Adam(self.critic1.parameters(), lr=self.lr)
         self.actor_opt   = torch.optim.Adam(self.actor.parameters(), lr=self.lr)
-        
-    #  -- Summary Methods -- %todo implement as a class
-    def __init_summaries__(self):
-        # tensorboard quantities
-        self.summaries = {'v_loss': {'sum': 0, 'count': 0},          # value loss values during training  - Average value loss PER GRADIENT STEP
-                          'p_loss': {'sum': 0, 'count': 0},          # policy loss values during training - Average policy loss PER GRADIENT STEP
-                          'reward': {'sum': 0, 'count': 1},          # rewards during environment steps   - Average reward PER EPISODE
-                          'max_actor_grad': 0,                       # maximum L1 gradient norm for the actor network
-                          'max_critic_grad': 0,                      # maximum L1 gradient norm for the critic network
-                          'tsallis_entropy': {'sum': 0, 'count': 0}, # Tsallis entropy with run's alpha value - Average self.alpha Tsallis entropy PER STEP
-                          'alpha_2_entropy': {'sum': 0, 'count': 0}, # alpha-2 Tsallis entropy used across experiments to compare uncertainty during training
-                          'wsn_distance': {'sum': 0, 'count': 0},    # Wasserstein distance between policies of same states after gradient step - Average Wasserstein Distance PER GRADIENT STEP
-                          # probabilities of each action
-                          **{f'action_probs_{i}': {'sum': 0, 'count': 0} for i in range(self.n_actions)}
-                        }
-        
-    def reset_summaries(self):
-        for name in self.summaries:
-            if isinstance(self.summaries[name], dict):
-                self.summaries[name]['sum'] = 0
-                self.summaries[name]['count'] = 0
-                if name == 'reward':
-                    self.summaries[name]['count'] = 1
-            else:
-                self.summaries[name] = 0
 
-    def update_summary(self, name, value, count=1):
-        if isinstance(self.summaries[name], dict):
-            self.summaries[name]['sum'] += value
-            self.summaries[name]['count'] += count
-        else:
-            self.summaries[name] = max(self.summaries[name], value)
-
-    def log_to_tensorboard(self, name, gradient_step):
-        mean_value = self.summaries[name]['sum'] / self.summaries[name]['count']
-        self.writer.add_scalar(name, mean_value, gradient_step)
-
-    # ----------------------------- # 
+    # -----------Tsallis---------- # 
 
     def log_alpha(self, pi): # %todo is there another solution to numerical problems?
         # Numerical issues arise (due to autograd) for sparse policies when alpha < 2 
@@ -126,15 +80,15 @@ class RAC:
 
     def train(self, verbose=True):
         self.env = atari_env(env_id=self.env_id, skip=4, stack=4)
+
         state = self.env.reset() # initialize environment
-        self.n_actions = self.env.action_space.n # get actions space cardinality 
+        self.n_actions = self.env.action_space.n # get action set cardinality
+
+        # tensorboard SummaryWriter wrapper to monitor useful metrics
+        self.summary = Summary(log_dir="tensorboard_logs/{}/".format(self.env_id[:-14]) + self.log_dir,
+                               n_actions=self.n_actions)
 
         self.__init_networks__()  # initialize parameterized policy and Q-value functions
-        self.__init_summaries__() # initialize summary for monitoring useful metrics
-        
-        count_episods = 1
-        self.sparse_actions = 0
-        self.all_actions = 0
 
         # fill the replay buffer with an initial samples
         if verbose:
@@ -147,9 +101,7 @@ class RAC:
             if done: state = self.env.reset() # reset environment if episode has ended
             else: state = next_state
 
-        # reset sparsity quantities
-        self.sparse_actions = 0
-        self.all_actions = 0
+        self.summary.reset() # initialize summary for monitoring useful metrics
 
         state = self.env.reset()     # reset environment
         start = time.time()          # start timer
@@ -163,10 +115,8 @@ class RAC:
         for environment_step in range_func: # $self.gradient_step_every environment steps, 1 gradient step
             # environment step
             next_state, reward, done, info = self.perform_environment_step(state, deterministic=self.deterministic)
-            if done:
-                state = self.env.reset()
-            else:
-                state = next_state
+            if done: state = self.env.reset()
+            else: state = next_state
 
             # gradient step
             if (environment_step) % (self.gradient_step_every) == 0: # take gradient step
@@ -183,31 +133,8 @@ class RAC:
 
                 # log onto tensorboard
                 if (environment_step) % (self.log_every * self.gradient_step_every) == 0:
-                    count_episodes = self.summaries['reward']['count']
                     gradient_step = environment_step/self.gradient_step_every
-                    # log environment quantities
-                    self.log_to_tensorboard('reward', gradient_step)
-                    self.writer.add_scalar('length', 4 * self.log_every/count_episods, gradient_step) # 4 frames
-                    self.writer.add_scalar('n_episodes', count_episods, gradient_step)
-                    # log losses and gradient norms
-                    self.log_to_tensorboard('p_loss', gradient_step)
-                    self.log_to_tensorboard('v_loss', gradient_step)
-                    self.writer.add_scalar('max_actor_grad', self.summaries['max_actor_grad'], gradient_step)
-                    self.writer.add_scalar('max_critic_grad', self.summaries['max_critic_grad'], gradient_step)
-                    # log sparsity quantities
-                    self.writer.add_scalar('sparsity', self.sparse_actions/self.all_actions, gradient_step)
-                    mean_action_probs = {str(action): self.summaries[f'action_probs_{action}']['sum'] / self.summaries[f'action_probs_{action}']['count'] for action in range(self.n_actions)}
-                    self.writer.add_scalars('action_probs', mean_action_probs, gradient_step)
-                    # log policy change
-                    self.log_to_tensorboard('wsn_distance', gradient_step)
-                    # log entropies
-                    self.log_to_tensorboard('tsallis_entropy', gradient_step)
-                    self.log_to_tensorboard('alpha_2_entropy', gradient_step)
-
-                    # reset quantities
-                    self.reset_summaries()
-                    self.sparse_actions = 0
-                    self.all_actions = 0
+                    self.summary.log_to_tensorboard(gradient_step=gradient_step)
 
                     if not verbose: # print onto .log
                         print("Save model, global_step: {}, delta_time: {}.".format(
@@ -216,8 +143,9 @@ class RAC:
 
     def perform_environment_step(self, state, deterministic=False):
         with torch.no_grad(): pi = self.actor(torch.tensor(state).unsqueeze(0).to(self.device))
-        self.sparse_actions += (pi==0).sum().item() # count sparse actions
-        self.all_actions += self.n_actions
+        # monitor sparsity
+        sparse_actions = (pi==0).sum().item()
+        self.summary.update('sparsity', value=sparse_actions, count=self.n_actions-1)
         if deterministic:
             action = torch.argmax(pi).item()
         else:
@@ -227,15 +155,15 @@ class RAC:
 
         #  -- store monitored quantities -- 
 
-        # Update running sums and counts
-        self.update_summary('reward', reward, count=done) # only add to count if end of episode
-        self.update_summary('tsallis_entropy', self.Tsallis_Entropy(pi).sum().item())
-        self.update_summary('alpha_2_entropy', (- pi * (pi - 1)/2).sum().item())
+        # update running sums and counts
+        self.summary.update('reward', reward, count=done) # only add to count if end of episode
+        self.summary.update('tsallis_entropy', self.Tsallis_Entropy(pi).sum().item())
+        self.summary.update('alpha_2_entropy', (- pi * (pi - 1)/2).sum().item())
 
-        # Update action probabilities
+        # update action probabilities
         action_probs = pi.squeeze().tolist()
         for i, prob in enumerate(action_probs):
-            self.update_summary(f'action_probs_{i}', prob)
+            self.summary.update(f'action_probs_{i}', prob)
 
         return next_state, reward, done, info
 
@@ -244,8 +172,9 @@ class RAC:
         qvals  = self.critic1(state_batch).squeeze() # Q_{\theta} ( s_t, . )
         policy = self.actor(state_batch).squeeze()   # \pi_{\psi} ( s_t, . )
 
-        self.sparse_actions += (policy==0).sum().item() # count sparse actions
-        self.all_actions    +=  self.batch_size * self.n_actions
+        # monitor sparsity -- should I monitor here?
+        # sparse_actions = (policy==0).sum().item()
+        # self.summary.update('sparsity', value=sparse_actions, count=self.batch_size * self.n_actions)
 
         # compute Q-value loss
         if self.batch_size == 1: qvals = qvals.unsqueeze(0)
@@ -282,15 +211,15 @@ class RAC:
         actor_norm = clip_grad_norm_(self.actor.parameters(), self.clip_grad_param)
         self.actor_opt.step()
 
-        # update running sums and counts
-        self.update_summary('v_loss', v_loss.item())
-        self.update_summary('p_loss', p_loss.item())
-        self.update_summary('wsn_distance', mean_wasserstein_distance(policy, self.actor(state_batch).squeeze()))
-        # update actor_grad and critic_grad if they are larger than the current maximum
-        if actor_norm.item() > self.summaries['max_actor_grad']:
-            self.summaries['max_actor_grad'] = actor_norm.item()
-        if critic_norm.item() > self.summaries['max_critic_grad']:
-            self.summaries['max_critic_grad'] = critic_norm.item()
+        #  -- store monitored quantities --
+
+        # update summary of running sums and counts
+        self.summary.update('v_loss', v_loss.item())
+        self.summary.update('p_loss', p_loss.item())
+        self.summary.update('wsn_distance', mean_wasserstein_distance(policy, self.actor(state_batch).squeeze()))
+        # update actor_grad and critic_grad (we're only monitoring for the max value)
+        self.summary.update('max_actor_grad', actor_norm.item())
+        self.summary.update('max_critic_grad', critic_norm.item())
         
     # -- Target Update -- 
     
@@ -306,3 +235,13 @@ class RAC:
         """
         for target_param, local_param in zip(self.target_critic1.parameters(), self.critic1.parameters()):
             target_param.data.copy_(self.tau*local_param.data + (1.0-self.tau)*target_param.data)
+
+    # -- Save Function Approximators --
+            
+    def save_networks(self, path):
+        """Save the state dictionaries of the networks to the specified path."""
+        torch.save({
+            'critic1_state_dict': self.critic1.state_dict(),
+            'target_critic1_state_dict': self.target_critic1.state_dict(),
+            'actor_state_dict': self.actor.state_dict(),
+        }, path)

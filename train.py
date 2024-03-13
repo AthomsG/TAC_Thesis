@@ -3,7 +3,6 @@ from algorithm import RAC
 import torch
 import os
         
-# argument parser (makes it easier to run several experiments simultaneously)
 parser = argparse.ArgumentParser(description='Train RAC agent')
 
 parser.add_argument('--batch_size', type=int, default=32, help='Batch size for training')
@@ -45,6 +44,10 @@ agent = RAC(batch_size=args.batch_size,
             discount=args.discount,
             env_id=args.game_name,
             log_dir=log_dir)
+
+# create tensorboard_logs directory if it doesn't exist
+if not os.path.exists('tensorboard_logs'):
+    os.makedirs('tensorboard_logs')
 
 # store hyperparameters used in experiments
 with open('tensorboard_logs/hyperparameters.txt', 'w') as f:
