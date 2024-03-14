@@ -196,7 +196,7 @@ class RAC:
             # defined between equations (9) and (10)
             targets = reward_batch + (1 - done_batch) * self.discount * (next_action_qvals + self.lambd * next_action_log_alpha)
 
-        action_qvals = qvals.gather(1, action_batch)
+        action_qvals = qvals.gather(1, action_batch.unsqueeze(1)).squeeze(1)
         # compute value loss (equation 9)
         v_loss = F.mse_loss(action_qvals, targets)/2
 
