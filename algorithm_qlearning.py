@@ -194,9 +194,10 @@ class RAC:
             next_action_log_alpha = next_log_alpha.gather(1, next_actions.unsqueeze(1)).squeeze(1)     # \phi(\pi_{\psi} ( s_{t+1} | a_{t+1} ))
 
             # defined between equations (9) and (10)
-            targets = reward_batch + (1 - done_batch) * self.discount * (next_action_qvals + self.lambd * next_action_log_alpha)
+            targets = reward_batch.squeeze(1) + (1 - done_batch.squeeze(1)) * self.discount * (next_action_qvals + self.lambd * next_action_log_alpha)
 
-        action_qvals = qvals.gather(1, action_batch.unsqueeze(1)).squeeze(1)
+            from IPython import embed; embed()
+        action_qvals = qvals.gather(1, action_batch).squeeze(1)
         # compute value loss (equation 9)
         v_loss = F.mse_loss(action_qvals, targets)/2
 
