@@ -85,7 +85,7 @@ class RAC:
         self.n_actions = self.env.action_space.n # get action set cardinality
 
         # tensorboard SummaryWriter wrapper to monitor useful metrics
-        self.summary = Summary(log_dir="tensorboard_logs/{}/".format(self.env_id[:-14]) + self.log_dir,
+        self.summary = Summary(log_dir="tensorboard_logs_q/{}/".format(self.env_id[:-14]) + self.log_dir,
                                n_actions=self.n_actions)
 
         self.__init_networks__()  # initialize parameterized policy and Q-value functions
