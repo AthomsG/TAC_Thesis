@@ -5,7 +5,6 @@ from torch.nn.utils import clip_grad_norm_
 
 from tqdm import tqdm
 import time
-import numpy as np
 
 from summary import Summary, mean_wasserstein_distance
 from buffers import ReplayBuffer
@@ -27,7 +26,8 @@ class RAC:
                  memory_size,           # replay buffer size
                  env_id,                # environment name
                  log_dir,               # directory where tensorboard information is stored
-                 deterministic = False  # if true, take policy argmax. Else, sample from policy
+                 deterministic = False, # if true, take policy argmax. Else, sample from policy
+                 save_best_mdl = True   # if true, saves weights of run with highest cummulative reward
                  ):
         
         self.log_every = log_every
@@ -35,7 +35,8 @@ class RAC:
         self.discount = discount        
         self.lr = lr
         self.batch_size = batch_size
-        self.replay_buffer = ReplayBuffer(buffer_size=memory_size, batch_size=self.batch_size, device=self.device)
+        self.memory_size = memory_size
+        self.replay_buffer = ReplayBuffer(buffer_size=self.memory_size, batch_size=self.batch_size, device=self.device)
         self.learning_starts = learning_starts
         self.alpha = alpha
         self.lambd = lambd
@@ -49,6 +50,9 @@ class RAC:
         self.clip_grad_param = 1
         # polyak Averaging constant
         self.tau = 1e-2
+        # store best performing model
+        self.save_best_mdl = save_best_mdl
+        self.best_reward = -float('inf')
 
     def __init_networks__(self):
         # Critic network
@@ -64,23 +68,22 @@ class RAC:
 
     # -----------Tsallis---------- # 
 
-    def log_alpha(self, pi): # %todo is there another solution to numerical problems?
+    def log_alpha(self, policy): # %todo is there another solution to numerical problems?
         # Numerical issues arise (due to autograd) for sparse policies when alpha < 2 
-        eps = torch.any(pi==0)
+        eps = torch.any(policy==0)
         eps = eps.float() * 1e-10
         if self.alpha == 1:
-            return torch.log(pi + eps)
+            return torch.log(policy + eps)
         else:
-            return (torch.pow(pi + eps, self.alpha - 1) - 1)/(self.alpha - 1)
+            return (torch.pow(policy + eps, self.alpha - 1) - 1)/(self.alpha - 1)
 
-    def Tsallis_Entropy(self, pi):
-            return - pi * self.log_alpha(pi)/self.alpha
+    def Tsallis_Entropy(self, policy):
+            return - policy * self.log_alpha(policy)/self.alpha
     
     # ----------------------------- # 
 
     def train(self, verbose=True):
         self.env = atari_env(env_id=self.env_id, skip=4, stack=4)
-
         state = self.env.reset() # initialize environment
         self.n_actions = self.env.action_space.n # get action set cardinality
 
@@ -133,37 +136,58 @@ class RAC:
 
                 # log onto tensorboard
                 if (environment_step) % (self.log_every * self.gradient_step_every) == 0:
+                    # x-axis value
                     gradient_step = environment_step/self.gradient_step_every
+
+                    # get ReplayBuffer Statistics
+                    action_distribution = self.replay_buffer.action_distribution(self.n_actions)
+                    for action, value in action_distribution.items():
+                        self.summary.update(f'buff_actions_{action}', 
+                                            value=value,
+                                            count=len(self.replay_buffer))
+                        
+                    # save model if best
+                    if self.save_best_mdl:
+                        cumulative_reward = self.summary.mean('reward')
+                        if cumulative_reward > self.best_reward:
+                            self.best_reward = cumulative_reward
+                            self.save_networks(f'saved_models/{self.log_dir}_{cumulative_reward}.pth')
+                    
+                    # log onto tensorbard
                     self.summary.log_to_tensorboard(gradient_step=gradient_step)
 
                     if not verbose: # print onto .log
-                        print("Save model, global_step: {}, delta_time: {}.".format(
+                        print("Logged data, global_step: {}, delta_time: {}.".format(
                             environment_step, time.time() - start))
                         start = time.time()
 
     def perform_environment_step(self, state, deterministic=False):
-        with torch.no_grad(): pi = self.actor(torch.tensor(state).unsqueeze(0).to(self.device))
+        with torch.no_grad(): policy = self.actor(torch.tensor(state).unsqueeze(0).to(self.device))
         # monitor sparsity
-        sparse_actions = (pi==0).sum().item()
+        sparse_actions = (policy==0).sum().item()
         self.summary.update('sparsity', value=sparse_actions, count=self.n_actions-1)
         if deterministic:
-            action = torch.argmax(pi).item()
+            action = torch.argmax(policy).item()
         else:
-            action = Categorical(pi).sample().item()
+            action = Categorical(policy).sample().item()
         next_state, reward, done, info = self.env.step(action)
         self.replay_buffer.add(state, action, reward, next_state, done)
 
         #  -- store monitored quantities -- 
 
-        # update running sums and counts
         self.summary.update('reward', reward, count=done) # only add to count if end of episode
-        self.summary.update('tsallis_entropy', self.Tsallis_Entropy(pi).sum().item())
-        self.summary.update('alpha_2_entropy', (- pi * (pi - 1)/2).sum().item())
+        self.summary.update('tsallis_entropy', self.Tsallis_Entropy(policy).sum().item())
+        self.summary.update('alpha_2_entropy', (- policy * (policy - 1)/2).sum().item())
 
-        # update action probabilities
-        action_probs = pi.squeeze().tolist()
+        action_probs = policy.squeeze().tolist()
         for i, prob in enumerate(action_probs):
             self.summary.update(f'action_probs_{i}', prob)
+            self.summary.update(f'max_action_probs_{i}', prob)
+
+        # update log-alpha values
+        log_alpha_values = self.Tsallis_Entropy(policy).squeeze().tolist()
+        for i, value in enumerate(log_alpha_values):
+            self.summary.update(f'action_log_alpha_{i}', value)
 
         return next_state, reward, done, info
 
@@ -171,10 +195,6 @@ class RAC:
         # compute Q-values and policy
         qvals  = self.critic1(state_batch).squeeze() # Q_{\theta} ( s_t, . )
         policy = self.actor(state_batch).squeeze()   # \pi_{\psi} ( s_t, . )
-
-        # monitor sparsity -- should I monitor here?
-        # sparse_actions = (policy==0).sum().item()
-        # self.summary.update('sparsity', value=sparse_actions, count=self.batch_size * self.n_actions)
 
         # compute Q-value loss
         if self.batch_size == 1: qvals = qvals.unsqueeze(0)
@@ -213,9 +233,10 @@ class RAC:
 
         #  -- store monitored quantities --
 
-        # update summary of running sums and counts
+        # update entropies
         self.summary.update('v_loss', v_loss.item())
         self.summary.update('p_loss', p_loss.item())
+        # update policy dissimilarity metric
         self.summary.update('wsn_distance', mean_wasserstein_distance(policy, self.actor(state_batch).squeeze()))
         # update actor_grad and critic_grad (we're only monitoring for the max value)
         self.summary.update('max_actor_grad', actor_norm.item())

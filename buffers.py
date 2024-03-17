@@ -35,6 +35,14 @@ class ReplayBuffer:
         dones = torch.from_numpy(np.vstack([e.done for e in experiences if e is not None]).astype(np.uint8)).float().to(self.device)
   
         return (states, actions, rewards, next_states, dones)
+    
+    def action_distribution(self, n_actions):
+        """Return a dictionary representing the distribution of actions in the replay buffer."""
+        action_distribution = {i: 0 for i in range(n_actions)}
+        for experience in self.memory:
+            action = experience.action
+            action_distribution[action] += 1
+        return action_distribution
 
     def __len__(self):
         """Return the current size of internal memory."""
