@@ -3,6 +3,7 @@ import torch.nn.functional as F
 from torch.distributions import Categorical
 from torch.nn.utils import clip_grad_norm_
 
+import os
 from tqdm import tqdm
 import time
 
@@ -150,8 +151,10 @@ class RAC:
                     if self.save_best_mdl:
                         cumulative_reward = self.summary.mean('reward')
                         if cumulative_reward > self.best_reward:
-                            self.best_reward = cumulative_reward
+                            # remove previous best model
+                            os.remove(f'saved_models/{self.log_dir}_{self.best_reward}.pth')
                             self.save_networks(f'saved_models/{self.log_dir}_{cumulative_reward}.pth')
+                            self.best_reward = cumulative_reward
                     
                     # log onto tensorbard
                     self.summary.log_to_tensorboard(gradient_step=gradient_step)
