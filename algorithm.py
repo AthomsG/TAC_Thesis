@@ -152,7 +152,8 @@ class RAC:
                         cumulative_reward = self.summary.mean('reward')
                         if cumulative_reward > self.best_reward:
                             # remove previous best model
-                            os.remove(f'saved_models/{self.log_dir}_{self.best_reward}.pth')
+                            if os.path.isfile(f'saved_models/{self.log_dir}_{self.best_reward}.pth'):
+                                os.remove(f'saved_models/{self.log_dir}_{self.best_reward}.pth')
                             self.save_networks(f'saved_models/{self.log_dir}_{cumulative_reward}.pth')
                             self.best_reward = cumulative_reward
                     
