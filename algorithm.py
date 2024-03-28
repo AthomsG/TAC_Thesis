@@ -4,6 +4,7 @@ from torch.distributions import Categorical
 from torch.nn.utils import clip_grad_norm_
 
 import os
+import numpy as np
 from tqdm import tqdm
 import time
 
@@ -101,7 +102,7 @@ class RAC:
             range_func = range(self.learning_starts)
 
         for _ in range_func:
-            next_state, reward, done, info = self.perform_environment_step(state, deterministic=self.deterministic)
+            next_state, reward, done, info = self.perform_environment_step(state, deterministic=self.deterministic, uniform=True)
             if done: state = self.env.reset() # reset environment if episode has ended
             else: state = next_state
 
@@ -165,33 +166,41 @@ class RAC:
                             environment_step, time.time() - start))
                         start = time.time()
 
-    def perform_environment_step(self, state, deterministic=False):
-        with torch.no_grad(): policy = self.actor(torch.tensor(state).unsqueeze(0).to(self.device))
-        # monitor sparsity
-        sparse_actions = (policy==0).sum().item()
-        self.summary.update('sparsity', value=sparse_actions, count=self.n_actions-1)
-        if deterministic:
-            action = torch.argmax(policy).item()
+    def perform_environment_step(self, state, deterministic=False, uniform=False):
+        if uniform: # sample from uniform when filling the buffer
+            action = np.random.choice(self.env.action_space.n)
+
+            next_state, reward, done, info = self.env.step(action)
+            self.replay_buffer.add(state, action, reward, next_state, done)
+
         else:
-            action = Categorical(policy).sample().item()
-        next_state, reward, done, info = self.env.step(action)
-        self.replay_buffer.add(state, action, reward, next_state, done)
+            with torch.no_grad(): policy = self.actor(torch.tensor(state).unsqueeze(0).to(self.device))
+            # monitor sparsity
+            sparse_actions = (policy==0).sum().item()
+            self.summary.update('sparsity', value=sparse_actions, count=self.n_actions-1)
+            if deterministic:
+                action = torch.argmax(policy).item()
+            else:
+                action = Categorical(policy).sample().item()
+        
+            next_state, reward, done, info = self.env.step(action)
+            self.replay_buffer.add(state, action, reward, next_state, done)
 
-        #  -- store monitored quantities -- 
+            #  -- store monitored quantities -- 
 
-        self.summary.update('reward', reward, count=done) # only add to count if end of episode
-        self.summary.update('tsallis_entropy', self.Tsallis_Entropy(policy).sum().item())
-        self.summary.update('alpha_2_entropy', (- policy * (policy - 1)/2).sum().item())
+            self.summary.update('reward', reward, count=done) # only add to count if end of episode
+            self.summary.update('tsallis_entropy', self.Tsallis_Entropy(policy).sum().item())
+            self.summary.update('alpha_2_entropy', (- policy * (policy - 1)/2).sum().item())
 
-        action_probs = policy.squeeze().tolist()
-        for i, prob in enumerate(action_probs):
-            self.summary.update(f'action_probs_{i}', prob)
-            self.summary.update(f'max_action_probs_{i}', prob)
+            action_probs = policy.squeeze().tolist()
+            for i, prob in enumerate(action_probs):
+                self.summary.update(f'action_probs_{i}', prob)
+                self.summary.update(f'max_action_probs_{i}', prob)
 
-        # update log-alpha values
-        log_alpha_values = self.Tsallis_Entropy(policy).squeeze().tolist()
-        for i, value in enumerate(log_alpha_values):
-            self.summary.update(f'action_log_alpha_{i}', value)
+            # update log-alpha values
+            log_alpha_values = self.Tsallis_Entropy(policy).squeeze().tolist()
+            for i, value in enumerate(log_alpha_values):
+                self.summary.update(f'action_log_alpha_{i}', value)
 
         return next_state, reward, done, info
 

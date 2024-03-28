@@ -5,9 +5,9 @@ mkdir -p train_log
 mkdir -p train_log/$1 # $1 is the environment name that is passed
 
 # define an array of values to be used in experiments
-seeds=(0 1)
-lambd=(0.1)
-alpha=(1 1.5 2 5)
+seeds=(10)
+lambd=(1)
+alpha=(1)
 
 # array to store process IDs
 pids_file="pids.txt"
