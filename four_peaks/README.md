@@ -1,4 +1,4 @@
-# Performance Experiment Runner
+# Four Peaks Environment
 
 This script is designed to run a series of performance experiments with varying hyperparameters in parallel using `tmux` sessions. Each experiment runs in a separate `tmux` session, and a progress bar updates as the experiments complete. This setup works on both macOS and Linux systems.
 
@@ -64,29 +64,3 @@ This will display all active `tmux` sessions, including those created by the scr
 ### Stopping the Experiments
 
 To stop all running experiments, press `Ctrl+C` in the terminal where the script is running. This will trigger the cleanup function, which terminates all `tmux` sessions related to the experiments and exits the script gracefully.
-
-## Script Breakdown
-
-### Function Definitions
-
-- **run_experiment**: Starts a new `tmux` session for each experiment with a unique name based on the hyperparameters.
-- **display_progress**: Updates and displays the progress bar.
-- **cleanup**: Terminates all running `tmux` sessions related to the experiments and exits the script.
-
-### Main Loop
-
-The main loop iterates over all combinations of `alpha` and `discretizations` values. For each combination, it runs experiments in parallel for each seed value. It waits for all experiments in a batch to complete before proceeding to the next set of hyperparameters and updates the progress bar accordingly.
-
-## Example Output
-
-\`\`\`bash
-Completed 1 out of 22 experiments (4.55%).
-Completed 2 out of 22 experiments (9.09%).
-...
-Completed 22 out of 22 experiments (100.00%).
-All experiments completed.
-\`\`\`
-
-## Conclusion
-
-This script provides an efficient way to run multiple experiments in parallel while keeping track of their progress. The use of `tmux` sessions allows for easy management and cleanup of running processes. By following the instructions above, you can set up and run your own performance experiments with this script.
