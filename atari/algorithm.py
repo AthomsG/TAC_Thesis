@@ -212,7 +212,7 @@ class RAC:
         # compute Q-value loss
         if self.batch_size == 1: qvals = qvals.unsqueeze(0)
 
-        with torch.no_grad(): # The value loss is not being computed properly
+        with torch.no_grad():
             next_qvals = self.target_critic1(next_state_batch).squeeze() # Q_{\theta} ( s_{t+1}, . )
             next_policy = self.actor(next_state_batch).squeeze()         # \pi_{\psi} ( s_{t+1} | . )
             if self.batch_size == 1: 
